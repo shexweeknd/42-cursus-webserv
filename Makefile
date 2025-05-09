@@ -2,26 +2,27 @@ NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
-SRCS = main.cpp \
-		Server.cpp \
-		Request.cpp \
-		Response.cpp \
-		Location.cpp \
-		Utils.cpp
+SRCS_FILES = main.cpp \
 
-OBJS = $(SRCS:.cpp=.o)
-INCLUDES = -I./includes
+SRCS_DIR = src/
+SRCS = $(addprefix $(SRCS_DIR), $(SRCS_FILES))
+
+OBJS_DIR = out/
+OBJS = $(addprefix $(OBJS_DIR), $(SRCS_FILES:.cpp=.o))
+
+INCLUDES = -I./inc 
 LIBS = -lpthread
+
+$(OBJS): $(OBJS_DIR)%.o : $(SRCS_DIR)%.cpp
+	@mkdir -p $(OBJS_DIR)
+	@echo "Compiling $<..."
+	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@	
 
 $(NAME): all
 
-$(OBJS): %.o: %.cpp
-	@echo "Compiling $<..."
-	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
-
-all:
+all: $(OBJS)
 	@echo "Building $(NAME)..."
-	@$(CXX) $(CXXFLAGS) $(INCLUDES) -o $(NAME) $(OBJS) $(LIBS)
+	@$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) $(LIBS) -o $(NAME) 
 	@echo "$(NAME) built successfully!"
 
 fclean:
