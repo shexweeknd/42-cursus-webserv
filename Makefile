@@ -1,3 +1,10 @@
+RED = \033[31m
+GREEN = \033[32m
+YELLOW = \033[33m
+ORANGE = \033[35m
+BLUE = \033[36m
+NONE = \033[0m
+
 NAME = webserv
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
@@ -13,28 +20,34 @@ OBJS = $(addprefix $(OBJS_DIR), $(SRCS_FILES:.cpp=.o))
 INCLUDES = -I./inc 
 LIBS = -lpthread
 
+all: $(NAME)
+
 $(OBJS): $(OBJS_DIR)%.o : $(SRCS_DIR)%.cpp
 	@mkdir -p $(OBJS_DIR)
-	@echo "Compiling $<..."
-	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@	
+	@$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-$(NAME): all
-
-all: $(OBJS)
-	@echo "Building $(NAME)..."
+$(NAME): $(OBJS)
+	@echo "⚙️ $(BLUE) Building $(NAME)...$(NONE)"
 	@$(CXX) $(CXXFLAGS) $(INCLUDES) $(OBJS) $(LIBS) -o $(NAME) 
-	@echo "$(NAME) built successfully!"
-
-fclean:
-	@echo "Cleaning up..."
-	@rm -f $(OBJS) $(NAME)
+	@echo "✅️ $(GREEN)$(NAME) built successfully!$(NONE)\n"
 
 clean:
-	@echo "Cleaning up..."
+	@echo "🧽 $(YELLOW)Cleaning up...$(NONE)"
 	@rm -f $(OBJS)
-	@echo "Cleaned up successfully!"
+	@echo "✅️ $(GREEN)Cleaned up successfully!$(NONE)\n"
+
+fclean: clean
+	@echo "🧹 $(RED)Hard cleaning up...$(NONE)"
+	@rm -f $(OBJS) $(NAME)
+	@echo "✅️ $(GREEN)Hard cleaned up successfully!$(NONE)\n"
 
 re: fclean all
-	@echo "Rebuilt $(NAME) successfully!"
+
+run: re
+	@echo "🚀 $(ORANGE)Running $(NAME)...$(NONE)"
+	@echo ""
+	@echo "----------------------------------------"
+	@echo ""
+	@./$(NAME)
 
 .PHONY: all clean fclean re
