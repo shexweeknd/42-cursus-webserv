@@ -1,70 +1,20 @@
 #include "webserv.hpp"
 
-#define GREEN "\033[32m"
-
-void printClientInfo(const sockaddr_in &clientAddr)
-{
-    // Print client address
-    std::cout << std::endl;
-    std::cout << "\e[32mConnection from client : \e[0m" << std::endl;
-    
-    char clientIP[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &clientAddr.sin_addr, clientIP, sizeof(clientIP));
-    std::cout << "Family: " << clientAddr.sin_family << std::endl;
-    std::cout << "Client IP: " << clientIP << std::endl;
-    std::cout << "Client port: " << ntohs(clientAddr.sin_port) << std::endl;
-    std::cout << "Client address: " << clientAddr.sin_addr.s_addr << std::endl;
-    
-    std::cout << std::endl;
-}
-
 int main(void)
 {
     sockaddr_in serverAddr;
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == -1) {
-        std::cerr << "\e[31mError creating socket: \e[0m" << strerror(errno) << std::endl;
-        return (1);
-    }
-    int opt = 1;
-    if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-        std::cerr << "\e[31mError setting socket options: \e[0m" << strerror(errno) << std::endl;
-        close(serverSocket);
-        return (1);
-    }
-    std::cout << "\e[32mSocket created successfully.\e[0m" << std::endl;
+    int serverSocket = configServerSocket();
+    if (serverSocket == -1) return (1);
 
-    // Set up the server address structure
-    memset(&serverAddr, 0, sizeof(serverAddr));
-    serverAddr.sin_family = AF_INET;
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(8080);
+    configServerAddr(serverAddr);
 
-    // Bind the socket to the address and port
-    if (bind(serverSocket, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-        std::cerr << "\e[31mError binding socket: " << strerror(errno) << std::endl;
-        close(serverSocket);
-        return (1);
-    }
-    std::cout << "\e[32mSocket bound successfully.\e[0m" << std::endl;
+    if(bindThemUp(serverSocket, serverAddr) == -1) return (1);
 
-    // Set the socket to listen for incoming connections
-    if (listen(serverSocket, 5) == -1) {
-        std::cerr << "\e[31mError listening on socket: \e[0m" << strerror(errno) << std::endl;
-        close(serverSocket);
-        return (1);
-    }
-    std::cout << "\e[32mListening on port 8080.\e[0m" << std::endl;
+    if (listenOnSocket(serverSocket) == -1) return (1);
 
-    //accept connections
     sockaddr_in clientAddr;
-    socklen_t clientAddrLen = sizeof(clientAddr);
-    int clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
-    if (clientSocket == -1) {
-        std::cerr << "\e[31mError accepting connection: \e[0m" << strerror(errno) << std::endl;
-        close(serverSocket);
-        return (1);
-    }
+    int clientSocket = configClientSocket(serverSocket, clientAddr);
+    if (clientSocket == -1) return (1);
 
     printClientInfo(clientAddr);
 

@@ -10,6 +10,9 @@ CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 
 SRCS_FILES = main.cpp \
+			debugUtils.cpp \
+			server.cpp \
+			client.cpp 
 
 SRCS_DIR = src/
 SRCS = $(addprefix $(SRCS_DIR), $(SRCS_FILES))
