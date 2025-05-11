@@ -2,8 +2,8 @@
 
 int main(void)
 {
-    std::cout << "\e[32mMaster process \e[32m(" << getpid() << ")\e[0m is starting...\e[0m" << std::endl;
-    
+    std::cout << "\e[32mMaster process \e[0m(" << getpid() << ")\e[32m is starting...\e[0m" << std::endl;
+
     Server  server;
 
     if (server.serverFd == -1) {

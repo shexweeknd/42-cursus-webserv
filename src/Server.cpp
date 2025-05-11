@@ -5,7 +5,6 @@ Server::Server()
     serverFd = configServerSocket();
     if (serverFd == -1)
         throw std::runtime_error("Failed to create server socket");
-    std::cout << "\e[32mMaster process \e[0m(" << getpid() << ")\e[32m is starting...\e[0m" << std::endl;
 
     configServerAddr();
 
@@ -13,7 +12,7 @@ Server::Server()
         throw std::runtime_error("Failed to bind server socket");
     if (listenOnSocket() == -1)
         throw std::runtime_error("Failed to listen on server socket");
-    std::cout << "\e[32mServer can now listen on port:\e[0m 8080" << std::endl;
+    std::cout << std::endl << "\e[32mServer socket created and configured successfully.\e[0m" << std::endl << std::endl;
 }
 
 Server::~Server()

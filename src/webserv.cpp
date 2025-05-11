@@ -1,5 +1,43 @@
 #include "webserv.hpp"
 
+// Send HTML file directly to the client
+void sendFile(int clientSocket, std::string filePath)
+{
+    int file = open(filePath.c_str(), O_RDONLY);
+    if (file == -1) {
+        std::cerr << "\e[31mError opening file: \e[0m" << strerror(errno) << std::endl;
+        return;
+    }
+    struct stat fileStat;
+    if (stat(filePath.c_str(), &fileStat) == -1) {
+        std::cerr << "\e[31mError getting file stats: \e[0m" << strerror(errno) << std::endl;
+        close(file);
+        return;
+    }
+    char *fileBuffer = new char[fileStat.st_size];
+    ssize_t bytesRead = read(file, fileBuffer, fileStat.st_size);
+    if (bytesRead == -1) {
+        std::cerr << "\e[31mError reading file: \e[0m" << strerror(errno) << std::endl;
+        delete[] fileBuffer;
+        close(file);
+        return;
+    }
+    std::ostringstream ss;
+    ss << fileStat.st_size;
+    std::string response = "HTTP/1.1 200 OK\r\n"
+                            "Content-Type: text/html\r\n"
+                            "Content-Length: " + ss.str() + "\r\n"
+                            "\r\n";
+    response += fileBuffer;
+    ssize_t bytesSent = send(clientSocket, response.c_str(), response.size(), 0);
+    if (bytesSent == -1) {
+        std::cerr << "\e[31mError sending file: \e[0m" << strerror(errno) << std::endl;
+    }
+    delete[] fileBuffer;
+    close(file);
+    std::cout << "\e[32mFile sent successfully.\e[0m" << std::endl;
+}
+
 int isKeepAlive(const char *buffer)
 {
     std::string request(buffer);
@@ -16,7 +54,7 @@ void work(Server &server)
 {
     struct epoll_event ev, events[MAX_EVENTS];
     
-    std::cout << "\e[32mWorker process (" << getpid() << ") is starting...\e[0m" << std::endl;
+    std::cout << "\e[32mWorker process \e[0m(" << getpid() << ")\e[32m is starting...\e[0m" << std::endl;
     
     int epollFd = epoll_create(1);
     if (epollFd == -1) {
@@ -81,12 +119,14 @@ void work(Server &server)
                 std::cout << "\e[32mReceived data from client: \e[0m" << buffer << std::endl;
 
                 // Send HTML response
-                sendHTML(events[n].data.fd);
+                sendFile(events[n].data.fd, "html/index.html");
                 std::cout << "\e[32mHTML response sent to client: \e[0m" << events[n].data.fd << std::endl;
                 if (!isKeepAlive(buffer)) {
                     std::cout << "\e[31mKeep-alive: false detected closing client fd\e[0m" << std::endl;
                     close(events[n].data.fd);
-                    std::cout << "\e[32mClosed client socket: \e[0m" << events[n].data.fd << std::endl;
+                } else {
+                    std::cout << "\e[32mKeep-alive: true detected\e[0m" << std::endl;
+                    epoll_ctl(epollFd, EPOLL_CTL_MOD, events[n].data.fd, &ev); // Modify the event to keep it in the epoll instance
                 }
             }
         }
