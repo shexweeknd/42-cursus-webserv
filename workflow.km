@@ -1,0 +1,80 @@
+{
+    "root": {
+        "data": {
+            "id": "d9te8xs7mhs0",
+            "created": 1746973010645,
+            "text": "WEBSERV"
+        },
+        "children": [
+            {
+                "data": {
+                    "id": "d9te92kc2ns0",
+                    "created": 1746973021052,
+                    "text": "SOCKET + EPOOL (can listen into multiple ports)"
+                },
+                "children": []
+            },
+            {
+                "data": {
+                    "id": "d9te9flhrls0",
+                    "created": 1746973049420,
+                    "text": "URL PARSER"
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "d9te9ix3f5s0",
+                            "created": 1746973056652,
+                            "text": "CGI"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9te9lhyd0w0",
+                            "created": 1746973062267,
+                            "text": "FILE FETCHER"
+                        },
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "data": {
+                    "id": "d9te9sv3ng00",
+                    "created": 1746973078300,
+                    "text": "CONFIG PARSER"
+                },
+                "children": [
+                    {
+                        "data": {
+                            "id": "d9te9xx58so0",
+                            "created": 1746973089307,
+                            "text": "DEFAULT SERVER"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9tea1boh9s0",
+                            "created": 1746973096716,
+                            "text": "MULTIPLE PORTS"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9tea4tmrj40",
+                            "created": 1746973104332,
+                            "text": "MULTIPLE SERVERS"
+                        },
+                        "children": []
+                    }
+                ]
+            }
+        ]
+    },
+    "template": "default",
+    "theme": "fresh-blue",
+    "version": "1.4.43"
+}
