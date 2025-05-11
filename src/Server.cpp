@@ -147,6 +147,7 @@ void Server::handleClient(int clientFd)
         }
         std::cout << "\e[32mClient socket removed from epoll successfully.\e[0m" << std::endl;
         // close the client socket
+        shutdown(clientFd, SHUT_WR);
         if (close(clientFd) == -1) {
             std::cerr << "\e[31mError closing client socket: \e[0m" << strerror(errno) << std::endl;
         } else {
@@ -162,9 +163,15 @@ void Server::handleClient(int clientFd)
 // TODO parse the request and send a response
 void Server::handleRequest(int clientFd, std::string &request)
 {
-    (void)request;
+    t_conn conn;
+    conn.status = 200;
+    conn.statusMessage = "OK";
+    if (request.empty()) {
+        std::cerr << "\e[31mGot an empty request from client: \e[0m" << clientFd << std::endl;
+        return;
+    }
     std::cout << "\e[32mHandling request from client: \e[0m" << clientFd << std::endl;
-    sendFile(clientFd, "html/index.html");
+    sendFile(clientFd, "html/index.html", conn, (request.find("Connection: keep-alive") != std::string::npos));
 }
 
 void Server::watchForEvents()
@@ -233,7 +240,7 @@ int Server::configEpoll()
 }
 
 // Send HTML file directly to the client
-void Server::sendFile(int clientSocket, const std::string &filePath)
+void Server::sendFile(int clientSocket, const std::string &filePath, t_conn conn, int alive)
 {
     int file = open(filePath.c_str(), O_RDONLY);
     if (file == -1) {
@@ -254,19 +261,21 @@ void Server::sendFile(int clientSocket, const std::string &filePath)
         close(file);
         return;
     }
-    std::ostringstream ss;
-    ss << fileStat.st_size;
-    std::string response = "HTTP/1.1 200 OK\r\n"
+    std::ostringstream ssSize;
+    std::ostringstream ssStatus;
+    ssStatus << conn.status;
+    ssSize << fileStat.st_size;
+    std::string response = "HTTP/1.1 " + ssStatus.str() +
+                            " " + conn.statusMessage + "\r\n"
                             "Server: Webserv\r\n"
                             "Date: " + std::string(__DATE__) + "\r\n"
                             "Last-Modified: " + std::string(__DATE__) + "\r\n"
                             "Accept-Ranges: bytes\r\n"
                             "Content-Disposition: inline; filename=\"" + filePath + "\"\r\n"
                             "Content-Transfer-Encoding: binary\r\n"
-                            "Connection: keep-alive\r\n"
+                            "Connection: " + (alive ? "keep-alive" : "close") + "\r\n"
                             "Content-Type: text/html\r\n"
-                            "Content-Length: " + ss.str() + "\r\n"
-                            "\r\n";
+                            "Content-Length: " + ssSize.str() + "\r\n" + "\r\n";
     response += fileBuffer;
     ssize_t bytesSent = send(clientSocket, response.c_str(), response.size(), 0);
     if (bytesSent == -1) {

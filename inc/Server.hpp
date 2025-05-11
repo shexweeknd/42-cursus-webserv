@@ -20,6 +20,11 @@
 #define BUFFER_SIZE 2048
 #define WORKERS 1
 
+typedef struct  s_conn {
+    int         status;
+    std::string statusMessage;
+}               t_conn;
+
 class Server
 {
     private:
@@ -33,7 +38,7 @@ class Server
         std::string     waitForRequest(int clientFd);
         void            setNonBlocking(int fd);
         void            watchForEvents();
-        void            sendFile(int clientSocket, const std::string &filePath);
+        void            sendFile(int clientSocket, const std::string &filePath, t_conn conn, int alive);
 
     public:
         Server();
