@@ -2,6 +2,7 @@
 
 Server::Server()
 {
+    memset(events, 0, sizeof(events));
     serverFd = configServerSocket();
     if (serverFd == -1)
         throw std::runtime_error("Failed to create server socket");
@@ -118,7 +119,7 @@ void Server::listenOnClients(epoll_event &events)
         return;
     }
     std::cout << "\e[32mClient connected: \e[0m" << clientFd << std::endl;
-    events.events = EPOLLIN | EPOLLET;
+    events.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     events.data.fd = clientFd;
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, clientFd, &events) == -1) {
         std::cerr << "\e[31mError adding client socket to epoll: \e[0m" << strerror(errno) << std::endl;
@@ -134,12 +135,28 @@ void Server::handleClient(int clientFd)
     std::cout << "\e[32mNew client connected: \e[0m" << clientFd << std::endl;
     std::string request = waitForRequest(clientFd);
     if (request.empty()) {
-        std::cerr << "\e[31mError receiving request: \e[0m" << strerror(errno) << std::endl;
-        close(clientFd);
+        std::cerr << "\e[31mGot an empty request from client: \e[0m" << clientFd << std::endl;
         return;
     }
     handleRequest(clientFd, request);
-    close(clientFd);
+    bool isKeepAlive = (request.find("Connection: keep-alive") != std::string::npos);
+    if (!isKeepAlive) {
+        // remove client from epoll
+        if (epoll_ctl(epollFd, EPOLL_CTL_DEL, clientFd, NULL) == -1) {
+            std::cerr << "\e[31mError removing client socket from epoll: \e[0m" << strerror(errno) << std::endl;
+        }
+        std::cout << "\e[32mClient socket removed from epoll successfully.\e[0m" << std::endl;
+        // close the client socket
+        if (close(clientFd) == -1) {
+            std::cerr << "\e[31mError closing client socket: \e[0m" << strerror(errno) << std::endl;
+        } else {
+            std::cout << "\e[32mClient socket closed successfully.\e[0m" << std::endl;
+        }
+        std::cout << "\e[32mClient disconnected: \e[0m" << clientFd << std::endl;
+    }
+    else {
+        std::cout << "\e[32mClient socket kept alive.\e[0m" << std::endl;
+    }
 }
 
 // TODO parse the request and send a response
@@ -153,6 +170,7 @@ void Server::handleRequest(int clientFd, std::string &request)
 void Server::watchForEvents()
 {
     while (true) {
+        memset(events, 0, sizeof(events));
         int eventCount = epoll_wait(epollFd, events, MAX_EVENTS, -1);
         if (eventCount == -1) {
             std::cerr << "\e[31mError waiting for events: \e[0m" << strerror(errno) << std::endl;
@@ -239,6 +257,13 @@ void Server::sendFile(int clientSocket, const std::string &filePath)
     std::ostringstream ss;
     ss << fileStat.st_size;
     std::string response = "HTTP/1.1 200 OK\r\n"
+                            "Server: Webserv\r\n"
+                            "Date: " + std::string(__DATE__) + "\r\n"
+                            "Last-Modified: " + std::string(__DATE__) + "\r\n"
+                            "Accept-Ranges: bytes\r\n"
+                            "Content-Disposition: inline; filename=\"" + filePath + "\"\r\n"
+                            "Content-Transfer-Encoding: binary\r\n"
+                            "Connection: keep-alive\r\n"
                             "Content-Type: text/html\r\n"
                             "Content-Length: " + ss.str() + "\r\n"
                             "\r\n";
