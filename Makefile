@@ -7,12 +7,12 @@ NONE = \033[0m
 
 NAME = webserv
 CXX = c++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 
 SRCS_FILES = main.cpp \
+			webserv.cpp \
 			debugUtils.cpp \
-			server.cpp \
-			client.cpp 
+			Server.cpp
 
 SRCS_DIR = src/
 SRCS = $(addprefix $(SRCS_DIR), $(SRCS_FILES))

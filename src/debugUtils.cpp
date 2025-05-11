@@ -15,3 +15,16 @@ void printClientInfo(const sockaddr_in &clientAddr)
     
     std::cout << std::endl;
 }
+// close function
+
+void sendHTML(int clientSocket)
+{
+    const char *htmlResponse = "HTTP/1.1 200 OK\r\n"
+                               "Content-Type: text/html\r\n"
+                               "Content-Length: 13\r\n"
+                               "\r\n"
+                               "<h1>Hello</h1>\n";
+    
+    send(clientSocket, htmlResponse, strlen(htmlResponse), 0);
+    close(clientSocket);
+}
