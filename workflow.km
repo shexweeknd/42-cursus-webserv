@@ -53,6 +53,14 @@
                             "text": "FILE FETCHER"
                         },
                         "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9ugweia32o0",
+                            "created": 1747082051602,
+                            "text": "Default error page"
+                        },
+                        "children": []
                     }
                 ]
             },
@@ -83,7 +91,15 @@
                         "data": {
                             "id": "d9tea4tmrj40",
                             "created": 1746973104332,
-                            "text": "MULTIPLE SERVERS"
+                            "text": "MULTIPLE SERVERS RULES"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9ugws5fih40",
+                            "created": 1747082081301,
+                            "text": "CGI"
                         },
                         "children": []
                     }

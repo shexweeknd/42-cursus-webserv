@@ -12,7 +12,9 @@ CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g
 SRCS_FILES = main.cpp \
 			webserv.cpp \
 			debugUtils.cpp \
-			Server.cpp
+			Server.cpp \
+			configParser.cpp \
+			urlParser.cpp
 
 SRCS_DIR = src/
 SRCS = $(addprefix $(SRCS_DIR), $(SRCS_FILES))
