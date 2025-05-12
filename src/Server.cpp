@@ -88,7 +88,11 @@ int Server::configServerSocket(void)
         close(serverSocket);
         return (-1);
     }
-    fcntl(serverSocket, F_SETFL, O_NONBLOCK);
+    if (setNonBlocking(serverSocket) == -1) {
+        std::cerr << "\e[31mError setting non-blocking mode for serverSocket : \e[0m" << "fcntl() returned -1" << std::endl;
+        close(serverSocket);
+        return (-1);
+    }
     std::cout << "\e[32mSocket created successfully.\e[0m" << std::endl;
     return (serverSocket);
 }
@@ -119,7 +123,7 @@ int Server::bindThemUp(int serverFd)
     return (0);
 }
 
-// Set the socket to listen for incoming connections
+// Set the socket to listen for incoming responseections
 int Server::confListening(int serverFd)
 {
     if (serverFd == -1) {
@@ -127,8 +131,12 @@ int Server::confListening(int serverFd)
         return (1);
     }
     // Set the socket to non-blocking mode
-    fcntl(serverFd, F_SETFL, O_NONBLOCK);
-    // Listen for incoming connections
+    if (setNonBlocking(serverFd) == -1) {
+        std::cerr << "\e[31mError setting non-blocking mode for serverFd : \e[0m" << serverFd << std::endl;
+        close(serverFd);
+        return (1);
+    }
+    // Listen for incoming responseections
     if (listen(serverFd, SOMAXCONN) == -1) {
         std::cerr << "\e[31mError listening on socket : \e[0m" << serverFd << std::endl;
         close(serverFd);
@@ -157,31 +165,24 @@ int Server::addServerFdToEpoll(int epollFd, int serverFd)
     return (0);
 }
 
-void Server::setNonBlocking(int fd)
+int Server::setNonBlocking(int fd)
 {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        std::cerr << "\e[31mError getting flags: \e[0m" << "flag is -1" << std::endl;
-        return;
-    }
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        std::cerr << "\e[31mError setting non-blocking mode: \e[0m" << "fcntl() returned -1" << std::endl;
-    }
+    return (fcntl(fd, F_SETFL, O_NONBLOCK));
 }
 
-// Listen for incoming client connections
+// Listen for incoming client responseections
 void Server::listenOnClients(epoll_event &events, int serverFd)
 {
     int clientFd = accept(serverFd, NULL, NULL);
     if (clientFd == -1) {
-        std::cout << "\e[31mError accepting client connection: \e[0m" << "accept() returned -1" << std::endl;
+        std::cout << "\e[31mError accepting client responseection: \e[0m" << "accept() returned -1" << std::endl;
     }
     else if (clientFd > MAX_CLIENTS) {
-        std::cerr << "\e[31mToo many clients connected: \e[0m" << clientFd << std::endl;
+        std::cerr << "\e[31mToo many clients responseected: \e[0m" << clientFd << std::endl;
         close(clientFd);
         return;
     }
-    std::cout << "\e[32mClient connected: \e[0m" << clientFd << std::endl;
+    std::cout << "\e[32mClient responseected: \e[0m" << clientFd << std::endl;
     events.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     events.data.fd = clientFd;
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, clientFd, &events) == -1) {
@@ -190,12 +191,16 @@ void Server::listenOnClients(epoll_event &events, int serverFd)
         return;
     }
     std::cout << "\e[32mClient socket added to epoll successfully.\e[0m" << std::endl;
-    setNonBlocking(clientFd);
+    if (setNonBlocking(clientFd) == -1) {
+        std::cerr << "\e[31mError setting non-blocking mode for client socket: \e[0m" << clientFd << std::endl;
+        close(clientFd);
+        return;
+    }
 }
 
 void Server::handleClient(int clientFd)
 {
-    std::cout << "\e[32mNew client connected: \e[0m" << clientFd << std::endl;
+    std::cout << "\e[32mNew client responseected: \e[0m" << clientFd << std::endl;
     std::string request = waitForRequest(clientFd);
     if (request.empty()) {
         std::cerr << "\e[31mGot an empty request from client: \e[0m" << clientFd << std::endl;
@@ -216,25 +221,117 @@ void Server::handleClient(int clientFd)
         } else {
             std::cout << "\e[32mClient socket closed successfully.\e[0m" << std::endl;
         }
-        std::cout << "\e[32mClient disconnected: \e[0m" << clientFd << std::endl;
+        std::cout << "\e[32mClient disresponseected: \e[0m" << clientFd << std::endl;
     }
     else {
         std::cout << "\e[32mClient socket kept alive.\e[0m" << std::endl;
     }
 }
 
+t_resp Server::configResponse(std::map<std::string, std::string> reqHeaders)
+{
+    t_resp  response;
+    bool    alive = false;
+
+    //TODO change
+    std::string rootPath = "./html/";
+
+    // Header keys
+    response.contentTypeHeader = "Content-Type";
+    response.contentLengthHeader = "Content-Length";
+    response.connectionHeader = "Connection";
+    response.lastModifiedHeader = "Last-Modified";
+    response.acceptRangesHeader = "Accept-Ranges";
+    response.contentDispositionHeader = "Content-Disposition";
+    response.contentTransferEncodingHeader = "Content-Transfer-Encoding";
+    response.serverHeader = "Server";
+    response.dateHeader = "Date";
+
+    if (reqHeaders.find("Host") == reqHeaders.end()) {
+        std::cerr << "\e[31mError: Host header not found in request.\e[0m" << std::endl;
+        response.statusCode = 400;
+        response.statusMessage = "Bad Request";
+        response.path = "./html/400.html";
+        return (response);
+    }
+    // verifier le path si la syntaxe est correcte error 400
+    if (reqHeaders["path"][0] != '/'
+        || reqHeaders["path"].find("..") != std::string::npos
+        || reqHeaders["path"].find("~") != std::string::npos
+        || reqHeaders["path"].empty()) {
+        std::cerr << "\e[31mError: path header not found in request.\e[0m" << std::endl;
+        response.statusCode = 400;
+        response.statusMessage = "Bad Request";
+        response.path = "./html/400.html";
+        return (response);
+    }
+    
+    response.path = reqHeaders["path"];
+    response.path.erase(0, 1);
+
+    // si path == '/' on renvoie index.html
+    if (reqHeaders["path"].compare("/") == 0) {
+        response.path = rootPath + "/index.html";
+        response.statusCode = 200;
+        response.statusMessage = "OK";
+        return (response);
+    }
+    
+    //  verifier si le path existe error 404
+    if (access(response.path.c_str(), F_OK) == -1) {
+        std::cerr << "\e[31mError: path header not found in request.\e[0m" << std::endl;
+        response.statusCode = 404;
+        response.statusMessage = "Not Found";
+        response.path = "./html/404.html";
+        return (response);
+    }
+
+    // verifier 408 error
+    if (reqHeaders.find("Content-Length") == reqHeaders.end()) {
+        std::cerr << "\e[31mError: Content-Length header not found in request.\e[0m" << std::endl;
+        response.statusCode = 408;
+        response.statusMessage = "Request Timeout";
+        response.path = "./html/408.html";
+        return (response);
+    }
+
+    if (reqHeaders.find("Connection") != reqHeaders.end()) {
+        if (reqHeaders["Connection"] == "keep-alive") {
+            alive = true;
+        } else {
+            alive = false;
+        }
+    }
+
+    response.statusCode = 200;
+    response.statusMessage = "OK";
+
+    // header values
+    response.contentTypeHeaderValue = "text/html";
+    response.contentLengthHeaderValue = "0";
+    response.connectionHeaderValue = (alive ? "keep-alive" : "close");
+    response.lastModifiedHeaderValue = std::string(__DATE__);
+    response.acceptRangesHeaderValue = "bytes";
+    response.contentDispositionHeaderValue = "inline";
+    response.contentTransferEncodingHeaderValue = "binary";
+    response.serverHeaderValue = "Webserv";
+    response.dateHeaderValue = std::string(__DATE__);
+
+    return (response);
+}
+
 // TODO parse the request and send a response
 void Server::handleRequest(int clientFd, std::string &request)
 {
-    t_conn conn;
-    conn.status = 200;
-    conn.statusMessage = "OK";
     if (request.empty()) {
         std::cerr << "\e[31mGot an empty request from client: \e[0m" << clientFd << std::endl;
         return;
     }
+    std::map<std::string, std::string> reqHeaders = parseHttpRequest(request);
+    t_resp resp;
+    resp = configResponse(reqHeaders);
     std::cout << "\e[32mHandling request from client: \e[0m" << clientFd << std::endl;
-    sendFile(clientFd, "html/index.html", conn, (request.find("Connection: keep-alive") != std::string::npos));
+    sendFile(clientFd, resp);
 }
 
 void Server::watchForEvents()
@@ -254,7 +351,7 @@ void Server::watchForEvents()
                 std::cerr << "\e[31mError on client socket: \e[0m" << events[i].data.fd << std::endl;
                 close(events[i].data.fd);
             } else if (events[i].events & EPOLLHUP) {
-                std::cerr << "\e[31mClient disconnected: \e[0m" << events[i].data.fd << std::endl;
+                std::cerr << "\e[31mClient disresponseected: \e[0m" << events[i].data.fd << std::endl;
                 close(events[i].data.fd);
             } else if (events[i].events & EPOLLIN) {
                 std::cout << "\e[32mData available to read from client: \e[0m" << events[i].data.fd << std::endl;
@@ -295,46 +392,46 @@ int Server::configEpoll()
 }
 
 // Send HTML file directly to the client
-void Server::sendFile(int clientSocket, const std::string &filePath, t_conn conn, int alive)
+void Server::sendFile(int clientSocket, t_resp resp)
 {
-    int file = open(filePath.c_str(), O_RDONLY);
+    int file = open(resp.path.c_str(), O_RDONLY);
     if (file == -1) {
-        std::cerr << "\e[31mError opening file : \e[0m" << filePath << std::endl;
+        std::cerr << "\e[31mError opening file : \e[0m" << resp.path << std::endl;
         return;
     }
     struct stat fileStat;
-    if (stat(filePath.c_str(), &fileStat) == -1) {
-        std::cerr << "\e[31mError getting file stats for : \e[0m" << filePath << std::endl;
+    if (stat(resp.path.c_str(), &fileStat) == -1) {
+        std::cerr << "\e[31mError getting file stats for : \e[0m" << resp.path << std::endl;
         close(file);
         return;
     }
     char *fileBuffer = new char[fileStat.st_size];
     ssize_t bytesRead = read(file, fileBuffer, fileStat.st_size);
     if (bytesRead == -1) {
-        std::cerr << "\e[31mError reading file : \e[0m" << filePath << std::endl;
+        std::cerr << "\e[31mError reading file : \e[0m" << resp.path << std::endl;
         delete[] fileBuffer;
         close(file);
         return;
     }
     std::ostringstream ssSize;
     std::ostringstream ssStatus;
-    ssStatus << conn.status;
+    ssStatus << resp.statusCode;
     ssSize << fileStat.st_size;
     std::string response = "HTTP/1.1 " + ssStatus.str() +
-                            " " + conn.statusMessage + "\r\n"
+                            " " + resp.statusMessage + "\r\n"
                             "Server: Webserv\r\n"
                             "Date: " + std::string(__DATE__) + "\r\n"
                             "Last-Modified: " + std::string(__DATE__) + "\r\n"
                             "Accept-Ranges: bytes\r\n"
-                            "Content-Disposition: inline; filename=\"" + filePath + "\"\r\n"
+                            "Content-Disposition: inline; filename=\"" + resp.path + "\"\r\n"
                             "Content-Transfer-Encoding: binary\r\n"
-                            "Connection: " + (alive ? "keep-alive" : "close") + "\r\n"
+                            "Connection: " + resp.connectionHeaderValue + "\r\n"
                             "Content-Type: text/html\r\n"
                             "Content-Length: " + ssSize.str() + "\r\n" + "\r\n";
     response += fileBuffer;
     ssize_t bytesSent = send(clientSocket, response.c_str(), response.size(), 0);
     if (bytesSent == -1) {
-        std::cerr << "\e[31mError sending file : \e[0m" << filePath << std::endl;
+        std::cerr << "\e[31mError sending file : \e[0m" << resp.path << std::endl;
     }
     delete[] fileBuffer;
     close(file);
