@@ -10,9 +10,26 @@
                 "data": {
                     "id": "d9te92kc2ns0",
                     "created": 1746973021052,
-                    "text": "SOCKET + EPOOL (can listen into multiple ports)"
+                    "text": " EPOOL"
                 },
-                "children": []
+                "children": [
+                    {
+                        "data": {
+                            "id": "d9uee7kcmu00",
+                            "created": 1747074983715,
+                            "text": "manage multiple server sockets"
+                        },
+                        "children": []
+                    },
+                    {
+                        "data": {
+                            "id": "d9ueebd5w080",
+                            "created": 1747074991987,
+                            "text": "manage multiple clients sockets"
+                        },
+                        "children": []
+                    }
+                ]
             },
             {
                 "data": {

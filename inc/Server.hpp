@@ -4,6 +4,8 @@
 #include <string>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <vector>
+#include <algorithm>
 #include <netdb.h>  // Pour getaddrinfo() et gai_strerror()
 #include <unistd.h> // Pour close()
 #include <cstring>  // Pour memset()
@@ -28,26 +30,33 @@ typedef struct  s_conn {
 class Server
 {
     private:
+        Server();
+        Server(const Server &src);
+        Server &operator=(const Server &src);
+
         int             configServerSocket();
-        void            configServerAddr();
-        int             bindThemUp();
+        void            configServerAddr(unsigned short port = PORT);
+        int             bindThemUp(int serverFd);
+        int             confListening(int serverFd);
         int             configEpoll();
-        void            listenOnClients(epoll_event &events);
+        int             addServerFdToEpoll(int epollFd, int serverFd);
+        void            listenOnClients(epoll_event &events, int serverFd);
         void            handleClient(int clientFd);
         void            handleRequest(int clientFd, std::string &request);
         std::string     waitForRequest(int clientFd);
         void            setNonBlocking(int fd);
         void            watchForEvents();
         void            sendFile(int clientSocket, const std::string &filePath, t_conn conn, int alive);
+        
+        std::vector<int>    serverFds;
+        std::vector<int>    ports;
+        int                 epollFd;
+        sockaddr_in         serverAddr;
+        epoll_event         ev;
+        epoll_event         events[MAX_EVENTS];
 
     public:
-        Server();
         ~Server();
-        
-        int         serverFd;
-        int         epollFd;
-        sockaddr_in serverAddr;
-        epoll_event ev;
-        epoll_event events[MAX_EVENTS];
-        int         confListening();
+        Server(std::vector<int> ports);
+
 };

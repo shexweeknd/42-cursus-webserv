@@ -1,38 +1,77 @@
 #include "Server.hpp"
 
-Server::Server()
+// canonical form
+Server::Server(const Server &src)
 {
-    memset(events, 0, sizeof(events));
-    serverFd = configServerSocket();
-    if (serverFd == -1)
-        throw std::runtime_error("Failed to create server socket");
-
-    configServerAddr();
-
-    if (bindThemUp() == -1)
-        throw std::runtime_error("Failed to bind server socket");
-    if (confListening() == -1)
-        throw std::runtime_error("Failed to listen on server socket");
-    if (configEpoll() == -1)
-        throw std::runtime_error("Failed to configure epoll");
-    std::cout << std::endl << "\e[32mServer socket created and configured successfully.\e[0m" << std::endl << std::endl;
-    std::cout << "\e[32mServer is running...\e[0m" << std::endl;
-    watchForEvents();
-    std::cout << "\e[32mServer is shutting down...\e[0m" << std::endl;
+    *this = src;
 }
+
+Server &Server::operator=(const Server &src)
+{
+    if (this != &src) {
+        for (std::vector<int>::iterator it = serverFds.begin(); it != serverFds.end(); ++it) {
+            if (close(*it) == -1) {
+                std::cerr << "\e[31mError closing server socket: \e[0m" << strerror(errno) << std::endl;
+            } else {
+                std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
+            }
+        }
+        if (close(epollFd) == -1) {
+            std::cerr << "\e[31mError closing epoll instance: \e[0m" << strerror(errno) << std::endl;
+        } else {
+            std::cout << "\e[32mEpoll instance closed successfully.\e[0m" << std::endl;
+        }
+        *this = Server(src.ports);
+    }
+    return (*this);
+}
+
+Server::Server()
+{}
 
 Server::~Server()
 {
-    if (close(serverFd) == -1) {
-        std::cerr << "\e[31mError closing server socket: \e[0m" << strerror(errno) << std::endl;
-    } else {
-        std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
+    for (std::vector<int>::iterator it = serverFds.begin(); it != serverFds.end(); ++it) {
+        if (close(*it) == -1) {
+            std::cerr << "\e[31mError closing server socket: \e[0m" << strerror(errno) << std::endl;
+        } else {
+            std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
+        }
     }
     if (close(epollFd) == -1) {
         std::cerr << "\e[31mError closing epoll instance: \e[0m" << strerror(errno) << std::endl;
     } else {
         std::cout << "\e[32mEpoll instance closed successfully.\e[0m" << std::endl;
     }
+    std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
+}
+
+// Constructor that takes a vector of ports
+Server::Server(std::vector<int> ports)
+{
+    this->ports = ports;
+    memset(events, 0, sizeof(events));
+    int epollFd = configEpoll();
+    if (epollFd == -1)
+        throw std::runtime_error("Failed to configure epoll");
+    for (std::vector<int>::iterator it = ports.begin(); it != ports.end(); ++it) {
+        int serverFd;
+        serverFd = configServerSocket();
+        if (serverFd == -1)
+            throw std::runtime_error("Failed to create server socket");
+        configServerAddr(*it);
+        if (bindThemUp(serverFd) == -1)
+            throw std::runtime_error("Failed to bind server socket");
+        if (confListening(serverFd) == -1)
+            throw std::runtime_error("Failed to listen on server socket");
+        if (addServerFdToEpoll(epollFd, serverFd) == -1)
+            throw std::runtime_error("Failed to add server socket to epoll");
+        serverFds.push_back(serverFd);
+        std::cout << std::endl;
+    }
+    std::cout << "\e[32mServer is running waiting for events ...\e[0m" << std::endl;
+    watchForEvents();
+    std::cout << "\e[32mServer is shutting down...\e[0m" << std::endl;
 }
 
 // Create && config the server socket
@@ -55,17 +94,22 @@ int Server::configServerSocket(void)
 }
 
 // Set up the server address structure
-void Server::configServerAddr()
+void Server::configServerAddr(unsigned short port)
 {
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_addr.s_addr = INADDR_ANY;
-    serverAddr.sin_port = htons(PORT);
+    serverAddr.sin_port = htons(port);
+    std::cout << "\e[32mServer address configured to listen on port :\e[0m" << port << std::endl;
 }
 
 // Bind the socket to the address and port
-int Server::bindThemUp()
+int Server::bindThemUp(int serverFd)
 {
+    if (serverFd == -1) {
+        std::cerr << "\e[31mError: serverFd is -1\e[0m" << std::endl;
+        return (1);
+    }
     if (bind(serverFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
         std::cerr << "\e[31mError binding socket: " << strerror(errno) << std::endl;
         close(serverFd);
@@ -76,17 +120,40 @@ int Server::bindThemUp()
 }
 
 // Set the socket to listen for incoming connections
-// TODO make it listen on multiple ports
-// TODO make it listen on multiple addresses
-int Server::confListening()
+int Server::confListening(int serverFd)
 {
+    if (serverFd == -1) {
+        std::cerr << "\e[31mError: serverFd is -1\e[0m" << std::endl;
+        return (1);
+    }
+    // Set the socket to non-blocking mode
     fcntl(serverFd, F_SETFL, O_NONBLOCK);
+    // Listen for incoming connections
     if (listen(serverFd, SOMAXCONN) == -1) {
-        std::cerr << "\e[31mError listening on socket: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError listening on socket : \e[0m" << strerror(errno) << std::endl;
         close(serverFd);
         return (1);
     }
-    std::cout << "\e[32mListening on port:\e[0m 8080" << std::endl;
+    std::cout << "\e[32mServer :\e[0m " << serverFd << "\e[32m is ready to listen.\e[0m" << std::endl;
+    return (0);
+}
+
+// Add the server socket to the epoll instance
+int Server::addServerFdToEpoll(int epollFd, int serverFd)
+{
+    if (epollFd == -1 || serverFd == -1) {
+        std::cerr << "\e[31mError: epollFd or serverFd is -1\e[0m" << std::endl;
+        return (-1);
+    }
+    ev.events = EPOLLIN;
+    ev.data.fd = serverFd;
+    if (epoll_ctl(epollFd, EPOLL_CTL_ADD, serverFd, &ev) == -1)
+    {
+        std::cerr << "\e[31mError adding server socket to epoll: \e[0m" << strerror(errno) << std::endl;
+        close(epollFd);
+        return (-1);
+    }
+    std::cout << "\e[32mServer socket :\e[0m " << serverFd << "\e[32m added to epoll successfully.\e[0m" << std::endl;
     return (0);
 }
 
@@ -103,7 +170,7 @@ void Server::setNonBlocking(int fd)
 }
 
 // Listen for incoming client connections
-void Server::listenOnClients(epoll_event &events)
+void Server::listenOnClients(epoll_event &events, int serverFd)
 {
     int clientFd = accept(serverFd, NULL, NULL);
     if (clientFd == -1) {
@@ -184,8 +251,9 @@ void Server::watchForEvents()
             continue;
         }
         for (int i = 0; i < eventCount; i++) {
-            if (events[i].data.fd == serverFd) {
-                listenOnClients(events[i]);
+            std::vector<int>::iterator it = std::find(serverFds.begin(), serverFds.end(), events[i].data.fd);
+            if (it != serverFds.end()) {
+                listenOnClients(events[i], *it);
             } else if (events[i].events & EPOLLERR) {
                 std::cerr << "\e[31mError on client socket: \e[0m" << events[i].data.fd << std::endl;
                 close(events[i].data.fd);
@@ -227,15 +295,6 @@ int Server::configEpoll()
         std::cerr << "\e[31mError creating epoll instance: \e[0m" << strerror(errno) << std::endl;
         return (-1);
     }
-    ev.events = EPOLLIN;
-    ev.data.fd = serverFd;
-    if (epoll_ctl(epollFd, EPOLL_CTL_ADD, serverFd, &ev) == -1)
-    {
-        std::cerr << "\e[31mError adding server socket to epoll: \e[0m" << strerror(errno) << std::endl;
-        close(epollFd);
-        return (-1);
-    }
-    std::cout << "\e[32mEpoll instance created and server socket added successfully.\e[0m" << std::endl;
     return (epollFd);
 }
 
