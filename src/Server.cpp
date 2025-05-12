@@ -11,13 +11,13 @@ Server &Server::operator=(const Server &src)
     if (this != &src) {
         for (std::vector<int>::iterator it = serverFds.begin(); it != serverFds.end(); ++it) {
             if (close(*it) == -1) {
-                std::cerr << "\e[31mError closing server socket: \e[0m" << strerror(errno) << std::endl;
+                std::cerr << "\e[31mError closing server socket : \e[0m" << *it << std::endl;
             } else {
                 std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
             }
         }
         if (close(epollFd) == -1) {
-            std::cerr << "\e[31mError closing epoll instance: \e[0m" << strerror(errno) << std::endl;
+            std::cerr << "\e[31mError closing epoll instance : \e[0m" << epollFd << std::endl;
         } else {
             std::cout << "\e[32mEpoll instance closed successfully.\e[0m" << std::endl;
         }
@@ -33,13 +33,13 @@ Server::~Server()
 {
     for (std::vector<int>::iterator it = serverFds.begin(); it != serverFds.end(); ++it) {
         if (close(*it) == -1) {
-            std::cerr << "\e[31mError closing server socket: \e[0m" << strerror(errno) << std::endl;
+            std::cerr << "\e[31mError closing server socket : \e[0m" << *it << std::endl;
         } else {
             std::cout << "\e[32mServer socket closed successfully.\e[0m" << std::endl;
         }
     }
     if (close(epollFd) == -1) {
-        std::cerr << "\e[31mError closing epoll instance: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError closing epoll instance: \e[0m" << epollFd << std::endl;
     } else {
         std::cout << "\e[32mEpoll instance closed successfully.\e[0m" << std::endl;
     }
@@ -79,12 +79,12 @@ int Server::configServerSocket(void)
 {
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
-        std::cerr << "\e[31mError creating socket: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError creating socket : \e[0m" << "socket() returned -1" << std::endl;
         return (-1);
     }
     int opt = 1;
     if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-        std::cerr << "\e[31mError setting socket options: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError setting socket options for serverSocket : \e[0m" << "setsockopt() returned -1" << std::endl;
         close(serverSocket);
         return (-1);
     }
@@ -111,7 +111,7 @@ int Server::bindThemUp(int serverFd)
         return (1);
     }
     if (bind(serverFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)) == -1) {
-        std::cerr << "\e[31mError binding socket: " << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError binding socket : " << serverFd << std::endl;
         close(serverFd);
         return (1);
     }
@@ -130,7 +130,7 @@ int Server::confListening(int serverFd)
     fcntl(serverFd, F_SETFL, O_NONBLOCK);
     // Listen for incoming connections
     if (listen(serverFd, SOMAXCONN) == -1) {
-        std::cerr << "\e[31mError listening on socket : \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError listening on socket : \e[0m" << serverFd << std::endl;
         close(serverFd);
         return (1);
     }
@@ -149,7 +149,7 @@ int Server::addServerFdToEpoll(int epollFd, int serverFd)
     ev.data.fd = serverFd;
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, serverFd, &ev) == -1)
     {
-        std::cerr << "\e[31mError adding server socket to epoll: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError adding serverFd \e[0m" << serverFd << "\e[31m to epoll : \e[0m" << epollFd  << std::endl;
         close(epollFd);
         return (-1);
     }
@@ -161,11 +161,11 @@ void Server::setNonBlocking(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1) {
-        std::cerr << "\e[31mError getting flags: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError getting flags: \e[0m" << "flag is -1" << std::endl;
         return;
     }
     if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        std::cerr << "\e[31mError setting non-blocking mode: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError setting non-blocking mode: \e[0m" << "fcntl() returned -1" << std::endl;
     }
 }
 
@@ -174,11 +174,7 @@ void Server::listenOnClients(epoll_event &events, int serverFd)
 {
     int clientFd = accept(serverFd, NULL, NULL);
     if (clientFd == -1) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // No more connections to accept
-        } else {
-            std::cerr << "\e[31mError accepting connection: \e[0m" << strerror(errno) << std::endl;
-        }
+        std::cout << "\e[31mError accepting client connection: \e[0m" << "accept() returned -1" << std::endl;
     }
     else if (clientFd > MAX_CLIENTS) {
         std::cerr << "\e[31mToo many clients connected: \e[0m" << clientFd << std::endl;
@@ -189,7 +185,7 @@ void Server::listenOnClients(epoll_event &events, int serverFd)
     events.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
     events.data.fd = clientFd;
     if (epoll_ctl(epollFd, EPOLL_CTL_ADD, clientFd, &events) == -1) {
-        std::cerr << "\e[31mError adding client socket to epoll: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError adding client socket to epoll: \e[0m" << "epoll_ctl() returned -1" << std::endl;
         close(clientFd);
         return;
     }
@@ -210,13 +206,13 @@ void Server::handleClient(int clientFd)
     if (!isKeepAlive) {
         // remove client from epoll
         if (epoll_ctl(epollFd, EPOLL_CTL_DEL, clientFd, NULL) == -1) {
-            std::cerr << "\e[31mError removing client socket from epoll: \e[0m" << strerror(errno) << std::endl;
+            std::cerr << "\e[31mError removing client socket from epoll: \e[0m" << "epoll_ctl() returned -1" << std::endl;
         }
         std::cout << "\e[32mClient socket removed from epoll successfully.\e[0m" << std::endl;
         // close the client socket
         shutdown(clientFd, SHUT_WR);
         if (close(clientFd) == -1) {
-            std::cerr << "\e[31mError closing client socket: \e[0m" << strerror(errno) << std::endl;
+            std::cerr << "\e[31mError closing client socket: \e[0m" << clientFd << std::endl;
         } else {
             std::cout << "\e[32mClient socket closed successfully.\e[0m" << std::endl;
         }
@@ -247,7 +243,7 @@ void Server::watchForEvents()
         memset(events, 0, sizeof(events));
         int eventCount = epoll_wait(epollFd, events, MAX_EVENTS, -1);
         if (eventCount == -1) {
-            std::cerr << "\e[31mError waiting for events: \e[0m" << strerror(errno) << std::endl;
+            std::cerr << "\e[31mError waiting for events: \e[0m" << "epoll_wait() returned -1" << std::endl;
             continue;
         }
         for (int i = 0; i < eventCount; i++) {
@@ -278,7 +274,7 @@ std::string Server::waitForRequest(int clientFd)
     std::cout << "\e[32mWaiting for request...\e[0m" << std::endl;
     ssize_t bytesRead = recv(clientFd, buffer, BUFFER_SIZE - 1, 0);
     if (bytesRead == -1) {
-        std::cerr << "\e[31mError receiving data: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError receiving data from clientFd : \e[0m" << clientFd << std::endl;
     }
     buffer[bytesRead] = '\0';
     std::cout << "\e[32mReceived request:\e[0m " << buffer << std::endl;
@@ -292,7 +288,7 @@ int Server::configEpoll()
     epollFd = epoll_create(1);
     if (epollFd == -1)
     {
-        std::cerr << "\e[31mError creating epoll instance: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError creating epoll instance: \e[0m" << "epoll_create() returned -1" << std::endl;
         return (-1);
     }
     return (epollFd);
@@ -303,19 +299,19 @@ void Server::sendFile(int clientSocket, const std::string &filePath, t_conn conn
 {
     int file = open(filePath.c_str(), O_RDONLY);
     if (file == -1) {
-        std::cerr << "\e[31mError opening file: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError opening file : \e[0m" << filePath << std::endl;
         return;
     }
     struct stat fileStat;
     if (stat(filePath.c_str(), &fileStat) == -1) {
-        std::cerr << "\e[31mError getting file stats: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError getting file stats for : \e[0m" << filePath << std::endl;
         close(file);
         return;
     }
     char *fileBuffer = new char[fileStat.st_size];
     ssize_t bytesRead = read(file, fileBuffer, fileStat.st_size);
     if (bytesRead == -1) {
-        std::cerr << "\e[31mError reading file: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError reading file : \e[0m" << filePath << std::endl;
         delete[] fileBuffer;
         close(file);
         return;
@@ -338,7 +334,7 @@ void Server::sendFile(int clientSocket, const std::string &filePath, t_conn conn
     response += fileBuffer;
     ssize_t bytesSent = send(clientSocket, response.c_str(), response.size(), 0);
     if (bytesSent == -1) {
-        std::cerr << "\e[31mError sending file: \e[0m" << strerror(errno) << std::endl;
+        std::cerr << "\e[31mError sending file : \e[0m" << filePath << std::endl;
     }
     delete[] fileBuffer;
     close(file);
