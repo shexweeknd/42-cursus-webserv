@@ -200,7 +200,7 @@ void Server::listenOnClients(epoll_event &events, int serverFd)
 
 void Server::handleClient(int clientFd)
 {
-    std::cout << "\e[32mNew client responseected: \e[0m" << clientFd << std::endl;
+    std::cout << "\e[32mNew client connected: \e[0m" << clientFd << std::endl;
     std::string request = waitForRequest(clientFd);
     if (request.empty()) {
         std::cerr << "\e[31mGot an empty request from client: \e[0m" << clientFd << std::endl;
@@ -251,7 +251,7 @@ t_resp Server::configResponse(std::map<std::string, std::string> reqHeaders)
         std::cerr << "\e[31mError: Host header not found in request.\e[0m" << std::endl;
         response.statusCode = 400;
         response.statusMessage = "Bad Request";
-        response.path = "./html/400.html";
+        response.path = "./html/errors/400.html";
         return (response);
     }
     // verifier le path si la syntaxe est correcte error 400
@@ -262,7 +262,7 @@ t_resp Server::configResponse(std::map<std::string, std::string> reqHeaders)
         std::cerr << "\e[31mError: path header not found in request.\e[0m" << std::endl;
         response.statusCode = 400;
         response.statusMessage = "Bad Request";
-        response.path = "./html/400.html";
+        response.path = "./html/errors/400.html";
         return (response);
     }
     
@@ -282,16 +282,7 @@ t_resp Server::configResponse(std::map<std::string, std::string> reqHeaders)
         std::cerr << "\e[31mError: path header not found in request.\e[0m" << std::endl;
         response.statusCode = 404;
         response.statusMessage = "Not Found";
-        response.path = "./html/404.html";
-        return (response);
-    }
-
-    // verifier 408 error
-    if (reqHeaders.find("Content-Length") == reqHeaders.end()) {
-        std::cerr << "\e[31mError: Content-Length header not found in request.\e[0m" << std::endl;
-        response.statusCode = 408;
-        response.statusMessage = "Request Timeout";
-        response.path = "./html/408.html";
+        response.path = "./html/errors/404.html";
         return (response);
     }
 
@@ -331,7 +322,18 @@ void Server::handleRequest(int clientFd, std::string &request)
     t_resp resp;
     resp = configResponse(reqHeaders);
     std::cout << "\e[32mHandling request from client: \e[0m" << clientFd << std::endl;
-    sendFile(clientFd, resp);
+    if (reqHeaders["method"] == "GET") {
+        GET(clientFd, resp);
+    } else if (reqHeaders["method"] == "POST") {
+        POST(clientFd, resp);
+    } else if (reqHeaders["method"] == "DELETE") {
+        DELETE(clientFd, resp);
+    } else {
+        std::cerr << "\e[31mError: method not supported.\e[0m" << std::endl;
+        resp.statusCode = 501;
+        resp.statusMessage = "Not Implemented";
+        resp.path = "./html/errors/501.html";
+    }
 }
 
 void Server::watchForEvents()
@@ -391,9 +393,11 @@ int Server::configEpoll()
     return (epollFd);
 }
 
-// Send HTML file directly to the client
-void Server::sendFile(int clientSocket, t_resp resp)
+// methods to handle HTTP methods
+// GET
+void Server::GET(int clientSocket, t_resp resp)
 {
+    std::cout << "\e[32mHandling GET request...\e[0m" << std::endl;
     int file = open(resp.path.c_str(), O_RDONLY);
     if (file == -1) {
         std::cerr << "\e[31mError opening file : \e[0m" << resp.path << std::endl;
@@ -436,4 +440,20 @@ void Server::sendFile(int clientSocket, t_resp resp)
     delete[] fileBuffer;
     close(file);
     std::cout << "\e[32mFile sent successfully.\e[0m" << std::endl;
+}
+
+// POST
+void Server::POST(int clientSocket, t_resp resp)
+{
+    (void)clientSocket;
+    (void)resp;
+    std::cout << "\e[32mHandling POST request...\e[0m" << std::endl;
+}
+
+// DELETE
+void Server::DELETE(int clientSocket, t_resp resp)
+{
+    (void)clientSocket;
+    (void)resp;
+    std::cout << "\e[32mHandling DELETE request...\e[0m" << std::endl;
 }

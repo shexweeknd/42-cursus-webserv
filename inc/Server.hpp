@@ -79,7 +79,10 @@ class Server
         std::string     waitForRequest(int clientFd);
         int             setNonBlocking(int fd);
         void            watchForEvents();
-        void            sendFile(int clientSocket, t_resp response);
+
+        void            GET(int clientSocket, t_resp resp);
+        void            POST(int clientSocket, t_resp resp);
+        void            DELETE(int clientSocket, t_resp resp);
         
         std::vector<int>    serverFds;
         std::vector<int>    ports;
